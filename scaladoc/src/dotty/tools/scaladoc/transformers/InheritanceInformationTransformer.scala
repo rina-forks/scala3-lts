@@ -50,11 +50,11 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
 
     val synthesised = getSynthesisedGivens(original)(givens.get(_))
 
-    givens = synthesised.foldLeft(givens) { case (givens,(oldDri, realDri)) =>
+    givens = synthesised.foldLeft(givens) { case (givens,(oldDri, ltt)) =>
       givens.get(oldDri) match {
         case Some(synthesisedInstances) =>
-          val updatedInstances = synthesisedInstances ++ givens.getOrElse(realDri, Seq())
-          givens + (realDri -> updatedInstances)
+          val updatedInstances = synthesisedInstances ++ givens.getOrElse(ltt.dri, Seq())
+          givens + (ltt.dri -> updatedInstances)
         case _ => givens
       }
     }
@@ -66,21 +66,49 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
       m.withKnownChildren(st).withNewGraphEdges(edges.toSeq)
     }
 
+    val sigProvider = translators.ScalaSignatureProvider()
+
+    def richSignatureLink(m: Member, includeSuffix: Boolean) =
+      val raw = sigProvider.rawSignature(m)(m.kind)
+      var sig = raw.kind ++ raw.name
+      if (includeSuffix) {
+        // prefix never
+        sig = sig ++ raw.suffix
+      }
+      sig
+
+    def drisInSignature(s: Signature) =
+      s.flatMap {
+        case Name(_, dri) => Seq(dri)
+        case Type(_, dri) => dri.toSeq
+        case _ => Nil
+      }
+
+    println(synthesised.keySet)
+
+    // do un-synthesising first.
+
     original.updateMembers { m =>
       val links = givens.getOrElse(m.dri, Nil).map { m =>
         m.kind match {
-          case Kind.Given(_, _, _) =>
-            val sigProvider = translators.ScalaSignatureProvider()
-            val sig = sigProvider.rawSignature(m)(m.kind)
-            println(sig)
-            m.asLink.copy(signature = sig.prefix ++ sig.kind ++ sig.name ++ sig.suffix)
+          case kind @ Kind.Given(_, _, _) =>
+            // real kind without synthesised
+            println("dris in signature:")
+            println(kind.as.toSeq.flatMap(drisInSignature))
+            val realSig = kind.as.toSeq.flatMap(drisInSignature).flatMap(synthesised.get(_)).headOption.map(_.signature)
+            println("matched realsig: " + realSig)
+            val realKind = kind.copy(as = realSig.orElse(kind.as))
+            val m2 = m.copy(kind = realKind)
+            m2.asLink.copy(signature = richSignatureLink(m2, true))
           case _ => m.asLink
         }
       }
       // if (links.nonEmpty) {
       //   println(links)
       // }
-      m.copy(knownGivenInstances = links)
+      m.copy(
+        knownGivenInstances = links,
+      )
     }
 
 
@@ -103,24 +131,23 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
     c.members.flatMap(getSupertypes) ++ selfMapping
 
   // map of synthesised type to real type DRIs
-  private def getSynthesisedGivens(module: Module)(givens: DRI => Option[Seq[Member]]): Map[DRI, DRI] =
-    var synthesised = Map[DRI, DRI]()
+  private def getSynthesisedGivens(module: Module)(givens: DRI => Option[Seq[Member]]): Map[DRI, LinkToType] =
+    var synthesised = Map[DRI, LinkToType]()
 
     module.visitMembers { m =>
       if (m.fullName.contains("_Option")) {
         println(m)
       }
 
-
       givens(m.dri) match {
         case Some(Seq(instance)) if m.name.startsWith("given_")
             && m.sources.nonEmpty && m.sources == instance.sources =>
 
           m.directParents match {
-            case Seq(LinkToType(_, realDri, _)) =>
+            case Seq(ltt) =>
               // if this happens, then `m` is a synthesised given object
               // and we should replace it with its parent in the givens map.
-              synthesised = synthesised + (m.dri -> realDri)
+              synthesised = synthesised + (m.dri -> ltt)
               // println("found synthesised given " + m.fullName)
               // println("old: " + m.dri)
               // println("new: " + realDri)
