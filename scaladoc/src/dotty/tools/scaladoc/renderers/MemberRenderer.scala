@@ -501,12 +501,14 @@ class MemberRenderer(signatureRenderer: SignatureRenderer)(using DocContext) ext
 
       val supertypes = signatureList(m.parents, "supertypes", m.parents.length > 5)
       val subtypes = signatureList(m.knownChildren, "subtypes", m.knownChildren.length > 5)
+      val givens = signatureList(m.knownGivenInstances, "subtypes", m.knownGivenInstances.length > 5)
       val selfType = selfTypeList(m.selfType.toList)
 
       Seq(
         "Graph" -> graphHtml,
         "Supertypes" -> supertypes,
         "Known subtypes" -> subtypes,
+        "Known given instances" -> givens,
         "Self type" -> selfType,
       ).filterNot(_._2.isEmpty).flatMap(tableRow(_, _))
 
