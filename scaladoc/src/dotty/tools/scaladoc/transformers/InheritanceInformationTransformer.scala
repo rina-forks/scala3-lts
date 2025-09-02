@@ -67,10 +67,19 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
     }
 
     original.updateMembers { m =>
-      val links = givens.getOrElse(m.dri, Nil).map(_.asLink)
-      if (links.nonEmpty) {
-        println(links)
+      val links = givens.getOrElse(m.dri, Nil).map { m =>
+        m.kind match {
+          case Kind.Given(_, _, _) =>
+            val sigProvider = translators.ScalaSignatureProvider()
+            val sig = sigProvider.rawSignature(m)(m.kind)
+            println(sig)
+            m.asLink.copy(signature = sig.prefix ++ sig.kind ++ sig.name ++ sig.suffix)
+          case _ => m.asLink
+        }
       }
+      // if (links.nonEmpty) {
+      //   println(links)
+      // }
       m.copy(knownGivenInstances = links)
     }
 
@@ -112,9 +121,9 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
               // if this happens, then `m` is a synthesised given object
               // and we should replace it with its parent in the givens map.
               synthesised = synthesised + (m.dri -> realDri)
-              println("found synthesised given " + m.fullName)
-              println("old: " + m.dri)
-              println("new: " + realDri)
+              // println("found synthesised given " + m.fullName)
+              // println("old: " + m.dri)
+              // println("new: " + realDri)
             case _ => ()
           }
         case _ => ()
@@ -140,10 +149,10 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
       case _ => Nil
     }
 
-    if (selfMapping.nonEmpty) {
-    println("selfmapping " + selfMapping.map{case (a,b) => (a, b.fullName)})
-
-    }
+    // if (selfMapping.nonEmpty) {
+    // println("selfmapping " + selfMapping.map{case (a,b) => (a, b.fullName)})
+    //
+    // }
     c.members.filter { c => c.kind match
       case Kind.Unknown | Kind.Object | Kind.RootPackage | Kind.Package | Kind.Given(_, _, _) => true
       case _ => false

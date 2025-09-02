@@ -481,12 +481,12 @@ class MemberRenderer(signatureRenderer: SignatureRenderer)(using DocContext) ext
           ))
         case _ => Nil
 
-      def signatureList(list: Seq[LinkToType], className: String = "", expandable: Boolean, addKeywordLink: Boolean): Seq[AppliedTag] =
+      def signatureList(list: Seq[LinkToType], className: String = "", expandable: Boolean, addKindName: Boolean): Seq[AppliedTag] =
         if list.isEmpty then Nil
          else Seq(div(cls := s"mono-small-block $className")(
          list.map(link =>
-          val name = if addKeywordLink then renderLink(link.kind.name, link.dri) else link.kind.name
-          div(name," ", link.signature.map(renderElement(_)))),
+          val name = if addKindName then link.kind.name + " " else ""
+          div(name,"", link.signature.map(renderElement(_)))),
           if(expandable) then span(cls := "show-all-code show-content text-button h100")("Show all") else span()
         ))
 
@@ -500,9 +500,9 @@ class MemberRenderer(signatureRenderer: SignatureRenderer)(using DocContext) ext
             }
         ))
 
-      val supertypes = signatureList(m.parents, "supertypes", m.parents.length > 5, false)
-      val subtypes = signatureList(m.knownChildren, "subtypes", m.knownChildren.length > 5, false)
-      val givens = signatureList(m.knownGivenInstances, "subtypes", m.knownGivenInstances.length > 5, true)
+      val supertypes = signatureList(m.parents, "supertypes", m.parents.length > 5, true)
+      val subtypes = signatureList(m.knownChildren, "subtypes", m.knownChildren.length > 5, true)
+      val givens = signatureList(m.knownGivenInstances, "subtypes", m.knownGivenInstances.length > 5, false)
       val selfType = selfTypeList(m.selfType.toList)
 
       Seq(

@@ -115,7 +115,7 @@ object SymOps:
     def shouldDocumentClasslike(using dctx: DocContext): Boolean =
       import reflect._
       !sym.isHiddenByVisibility
-      && !sym.flags.is(Flags.Synthetic)
+      && (!sym.flags.is(Flags.Synthetic) || sym.name.startsWith("given_"))
       && (!sym.flags.is(Flags.Case) || !sym.flags.is(Flags.Enum))
 
     def getCompanionSymbol: Option[reflect.Symbol] = Some(sym.companionClass).filter(_.exists)
