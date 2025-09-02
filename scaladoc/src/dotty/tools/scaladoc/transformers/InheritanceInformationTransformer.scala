@@ -24,6 +24,11 @@ given GivenTrait[Int] with {
 
 }
 
+
+given [T](using GivenTrait[T]): GivenTrait[Option[T]] with {
+
+}
+
 // and these ones just use the parent trait in the signature.
 given GivenTrait[String] = new GivenTrait[String] { }
 
@@ -43,7 +48,9 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
 
     var givens = getGivens(original.rootPackage).groupMap(_._1)(_._2).view.mapValues(_.distinct).toMap
 
-    givens = getSynthesisedGivens(original)(givens.get(_)).foldLeft(givens) { case (givens,(oldDri, realDri)) =>
+    val synthesised = getSynthesisedGivens(original)(givens.get(_))
+
+    givens = synthesised.foldLeft(givens) { case (givens,(oldDri, realDri)) =>
       givens.get(oldDri) match {
         case Some(synthesisedInstances) =>
           val updatedInstances = synthesisedInstances ++ givens.getOrElse(realDri, Seq())
@@ -60,7 +67,11 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
     }
 
     original.updateMembers { m =>
-      m.copy(knownGivenInstances = givens.getOrElse(m.dri, Nil).map(_.asLink))
+      val links = givens.getOrElse(m.dri, Nil).map(_.asLink)
+      if (links.nonEmpty) {
+        println(links)
+      }
+      m.copy(knownGivenInstances = links)
     }
 
 
@@ -87,6 +98,11 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
     var synthesised = Map[DRI, DRI]()
 
     module.visitMembers { m =>
+      if (m.fullName.contains("_Option")) {
+        println(m)
+      }
+
+
       givens(m.dri) match {
         case Some(Seq(instance)) if m.name.startsWith("given_")
             && m.sources.nonEmpty && m.sources == instance.sources =>
@@ -112,7 +128,6 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
   //
   // returns an association between given type and its known instances.
   private def getGivens(c: Member): Seq[(DRI, Member)] =
-    println(c.name)
     // println(c.kind)
     // println("" + c.kind + c.fullName)
     val selfMapping = c.kind match {
@@ -130,6 +145,6 @@ class InheritanceInformationTransformer(using DocContext) extends (Module => Mod
 
     }
     c.members.filter { c => c.kind match
-      case Kind.Unknown | Kind.Object | Kind.RootPackage | Kind.Package => true
-      case _ => true
+      case Kind.Unknown | Kind.Object | Kind.RootPackage | Kind.Package | Kind.Given(_, _, _) => true
+      case _ => false
     }.flatMap(getGivens) ++ selfMapping
